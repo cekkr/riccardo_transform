@@ -128,7 +128,7 @@ def union_without_duplicates(list1, list2):
     """Merges two lists without repeating equal elements."""
     return list(set(list1) | set(list2))
 
-def decompose_sinusoid(data, halving, precision, max_halvings, reference_size):
+def decompose_sinusoid(data, halving=2.0, precision=5, max_halvings=10, reference_size=1):
     length = len(data)
     sinusoids = []
     residue = np.array(data)
