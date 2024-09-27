@@ -1,4 +1,4 @@
-# riccardo_transform
+# Riccardo's transform
 A "Fourier" transform made by me
 
 After a week of intense work, I decided to relax a bit (in my own way). I don't know why I decided to try to create my own Fuorier transform without any mathematical knowledge but just following my intuition (and GeoGebra). As naive as I am, this is the result:
