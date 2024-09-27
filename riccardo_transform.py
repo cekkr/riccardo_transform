@@ -1,9 +1,3 @@
-# riccardo_transform
-A "Fourier" transform made by me
-
-After a week of intense work, I decided to relax a bit (in my own way). I don't know why I decided to try to create my own Fuorier transform without any mathematical knowledge but just following my intuition (and GeoGebra). As naive as I am, this is the result:
-
-```python 
 import numpy as np
 from scipy.signal import find_peaks
 
@@ -187,21 +181,11 @@ def decompose_sinusoid(data, halving, precision, max_halvings, reference_size):
         frequency *= halving
 
     return sinusoids, residue.tolist(), resultant
-```
 
-# Example usage
-
-```python
+# Example usage:
 length = 100
 refPi = np.pi / (length / 2)
 data = [np.sin(refPi * x) + np.sin((refPi * x * 2) + (np.pi / 4)) for x in range(length)]
 
 sinusoids, residue, resultant = decompose_sinusoid(data, halving=2.0, precision=10, max_halvings=10, reference_size=1)
 print("Sinusoids:", sinusoids)
-```
-
-Results:
-
-```
-Sinusoids: [{'frequency': 0.06283185307179587, 'phase': 0, 'amplitude': 1}, {'frequency': 0.12566370614359174, 'phase': 0.7884661249732198, 'amplitude': 0.998291015625}]
-```
