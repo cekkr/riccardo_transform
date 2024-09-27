@@ -1,5 +1,5 @@
 # Riccardo's transform
-A "Fourier" transform made by me
+A "Fourier" transform made by me.
 
 After a week of intense work, this evening I decided to relax a bit (in my own way). I don't know why I decided to try to create my own Fuorier transform without any mathematical knowledge but just following my intuition (and GeoGebra). As naive as I am, this is the result after 4 hours of work:
 
@@ -205,3 +205,7 @@ Results:
 ```
 Sinusoids: [{'frequency': 0.06283185307179587, 'phase': 0, 'amplitude': 1}, {'frequency': 0.12566370614359174, 'phase': 0.7884661249732198, 'amplitude': 0.998291015625}]
 ```
+
+# Credits
+
+Riccardo Cecchini (rcecchini.ds@gmail.com)
