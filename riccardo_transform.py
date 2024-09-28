@@ -189,5 +189,5 @@ length = 100
 refPi = np.pi / (length / 2)
 data = [np.sin(refPi * x) + (np.sin((refPi * x * 2) + (np.pi / 4))*0.75) for x in range(length)]
 
-sinusoids, residue, resultant = decompose_sinusoid(data, halving=2.0, precision=6, max_halvings=10, reference_size=1)
+sinusoids, residue, resultant = decompose_sinusoid(data, halving=2.0, precision=8, max_halvings=10, reference_size=1)
 print("Sinusoids:", sinusoids)

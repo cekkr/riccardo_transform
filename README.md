@@ -198,14 +198,15 @@ length = 100
 refPi = np.pi / (length / 2)
 data = [np.sin(refPi * x) + (np.sin((refPi * x * 2) + (np.pi / 4))*0.75) for x in range(length)]
 
-sinusoids, residue, resultant = decompose_sinusoid(data, halving=2.0, precision=10, max_halvings=10, reference_size=1)
+# Use at least 6 of precision
+sinusoids, residue, resultant = decompose_sinusoid(data, halving=2.0, precision=8, max_halvings=10, reference_size=1)
 print("Sinusoids:", sinusoids)
 ```
 
 Results:
 
 ```
-Sinusoids: [{'frequency': 0.06283185307179587, 'phase': 0, 'amplitude': 1}, {'frequency': 0.12566370614359174, 'phase': 0.7838641826095627, 'amplitude': 0.75048828125}]
+Sinusoids: [{'frequency': 0.06283185307179587, 'phase': 0, 'amplitude': 1}, {'frequency': 0.12566370614359174, 'phase': 0.7838641826095627, 'amplitude': 0.7470703125}]
 ```
 
 ## Last changes
