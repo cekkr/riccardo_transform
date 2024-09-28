@@ -1,59 +1,85 @@
 import numpy as np
 from scipy.signal import find_peaks
 
+
 def find_peaks_iterative(array, n=3):
     """
-    Finds the indices of peaks (positive and negative) in an array,
-    iteratively searching for smaller peaks.
+    Finds the indices of peaks (positive and negative) in an array.
+    Iteratively flattens the array around the peaks to identify smaller peaks in subsequent iterations.
 
     Args:
-        array: List or array of numbers.
-        n: Maximum number of iterations to find smaller peaks.
+        array: The input array-like object.
+        n: The number of iterations.
 
     Returns:
-        A sorted list containing the indices of all peaks.
+        A sorted list of indices of the peaks in the array.
     """
+
     positive_peaks = set()
     negative_peaks = set()
 
     for _ in range(n):
-        # Find positive peaks
-        peaks, _ = find_peaks(array)  # Uso la funzione di SciPy
+        # Find positive and negative peaks using scipy.signal.find_peaks
+        peaks, _ = find_peaks(array)
         positive_peaks.update(peaks)
 
-        # Find negative peaks by inverting the array
-        peaks, _ = find_peaks(-array)  # Uso la funzione di SciPy
+        peaks, _ = find_peaks(-array)
         negative_peaks.update(peaks)
 
-        # "Flatten" the found peaks for the next iteration
+        # Flatten the array around the peaks to prepare for the next iteration
         for peak in positive_peaks:
-            if peak > 0 and peak < len(array) - 1:
-                array[peak] = (array[peak-1] + array[peak+1]) / 2
+            if 0 < peak < len(array) - 1:
+                array[peak] = (array[peak - 1] + array[peak + 1]) / 2
         for peak in negative_peaks:
-            if peak > 0 and peak < len(array) - 1:
-                array[peak] = (array[peak-1] + array[peak+1]) / 2
+            if 0 < peak < len(array) - 1:
+                array[peak] = (array[peak - 1] + array[peak + 1]) / 2
 
-    # Combine the indices of positive and negative peaks
+    # Combine and sort the peak indices
     peak_indices = positive_peaks | negative_peaks
+    return sorted(list(peak_indices))
 
-    # Convert to list and sort
-    peak_indices = sorted(list(peak_indices))
-
-    return peak_indices
 
 def generate_sinusoid(freq, amplitude, phase, length):
-    """Generates a sinusoid given the frequency, amplitude, and phase."""
+    """
+    Generates a sinusoid wave.
+
+    Args:
+        freq: The frequency of the sinusoid.
+        amplitude: The amplitude of the sinusoid.
+        phase: The phase shift of the sinusoid.
+        length: The length of the sinusoid.
+
+    Returns:
+        A numpy array representing the sinusoid wave.
+    """
     x = np.arange(length)
     return amplitude * np.sin((x * freq) + phase)
 
+
 def calculate_sin(freq, amplitude, phase, x):
+    """Calculates the value of a sinusoid at a given point."""
     return amplitude * np.sin((x * freq) + phase)
 
+
 def find_best_phase(residue, frequency, amplitude, precision, peak_indices):
-    """Refines the optimal phase by minimizing the error at peak indices."""
-    phases = [0, np.pi, np.pi*1.75]
+    """
+    Finds the optimal phase for a sinusoid by minimizing the error at peak indices.
+
+    Args:
+        residue: The residual signal after removing previous sinusoids.
+        frequency: The frequency of the sinusoid.
+        amplitude: The amplitude of the sinusoid.
+        precision: The number of iterations for refining the phase.
+        peak_indices: The indices of the peaks in the signal.
+
+    Returns:
+        The optimal phase.
+    """
+
+    phases = [0, np.pi, np.pi * 1.75]  # Initial phases to test
     best_phase = -1
     num_identical = 0
+
     for _ in range(precision):
         errors = []
         for phase in phases:
@@ -62,32 +88,46 @@ def find_best_phase(residue, frequency, amplitude, precision, peak_indices):
                 val = calculate_sin(frequency, amplitude, phase, peak)
                 res = residue[peak]
                 diffs.append(abs(val - res))
-            errors.append(np.max(diffs))
+            errors.append(np.max(diffs))  # Use maximum error for robustness
 
-        best = phases[np.argmin(errors)]
+        best = phases[np.argmin(errors)]  # Select phase with minimum error
 
         if best == best_phase:
             num_identical += 1
-            if num_identical >= int(precision/2):
-                break
+            if num_identical >= int(precision / 2):
+                break  # Stop if the best phase doesn't change
 
         best_phase = best
 
-        # Binary search refinement
+        # Refine the search range using binary search
         step = (max(phases) - min(phases)) / 2
         phases = [best_phase - step / 2, best_phase, best_phase + step / 2]
-        phases = [phase for phase in phases if 0 <= phase <= np.pi*2]
+        phases = [phase for phase in phases if 0 <= phase <= np.pi * 2]  # Ensure phase is within valid range
 
         if len(phases) == 1:
-            break
+            break  # Stop if the search range is reduced to a single value
 
     return best_phase
 
+
 def find_best_amplitude(residue, frequency, phase, precision, peak_indices):
-    """Refines the optimal amplitude by minimizing the error at peak indices."""
-    amplitudes = [0.25, 1, 2]
+    """
+    Finds the optimal amplitude for a sinusoid by minimizing the error at peak indices.
+
+    Args:
+        residue: The residual signal after removing previous sinusoids.
+        frequency: The frequency of the sinusoid.
+        phase: The phase of the sinusoid.
+        precision: The number of iterations for refining the amplitude.
+        peak_indices: The indices of the peaks in the signal.
+
+    Returns:
+        The optimal amplitude.
+    """
+    amplitudes = [0, 1, 2]  # Initial amplitudes to test
     best_amplitude = -1
     num_identical = 0
+
     for _ in range(precision):
         errors = []
         for amplitude in amplitudes:
@@ -96,48 +136,81 @@ def find_best_amplitude(residue, frequency, phase, precision, peak_indices):
                 val = calculate_sin(frequency, amplitude, phase, peak)
                 res = residue[peak]
                 diffs.append(abs(val - res))
-            errors.append(np.max(diffs))
+            errors.append(np.max(diffs))  # Use maximum error for robustness
 
-        best = amplitudes[np.argmin(errors)]
+        best = amplitudes[np.argmin(errors)]  # Select amplitude with minimum error
 
         if best_amplitude == best:
             num_identical += 1
-            if num_identical >= int(precision/2):
-                break
+            if num_identical >= int(precision / 2):
+                break  # Stop if the best amplitude doesn't change
 
         best_amplitude = best
 
-        # Binary search refinement
+        # Refine the search range using binary search
         step = (max(amplitudes) - min(amplitudes)) / 2
         amplitudes = [best_amplitude - step / 2, best_amplitude, best_amplitude + step / 2]
-        amplitudes = [amp for amp in amplitudes if 0 <= amp <= 2]
+        amplitudes = [amp for amp in amplitudes if 0 <= amp <= 2]  # Ensure amplitude is within valid range
 
         if len(amplitudes) == 1:
-            break
+            break  # Stop if the search range is reduced to a single value
 
     return best_amplitude
+
 
 def calculate_mean(numbers):
     """Calculates the mean of a list of numbers."""
     return np.abs(np.average(numbers))
 
+
 def union_without_duplicates(list1, list2):
-    """Merges two lists without repeating equal elements."""
-    return list(set(list1) | set(list2))
+    """Merges two lists while preserving order and avoiding duplicates."""
+    combined_list = list1.copy()
+    for item in list2:
+        if item not in combined_list:
+            combined_list.append(item)
+    return combined_list
+
 
 def decompose_sinusoid(data, halving=2.0, precision=6, max_halvings=10, reference_size=1, negligible=0.01):
+    """
+    Decomposes a given data series into a sum of sinusoids.
+
+    Args:
+        data: The input data series.
+        halving: The factor by which the frequency is halved in each iteration.
+        precision: The number of iterations for refining amplitude and phase.
+        max_halvings: The maximum number of times the frequency can be halved.
+        reference_size: The initial reference frequency.
+        negligible: The threshold for the mean residue below which the decomposition stops.
+
+    Returns:
+        A tuple containing:
+            - A list of dictionaries, where each dictionary represents a sinusoid with keys 'frequency', 'phase', and 'amplitude'.
+            - The residual data after removing the sinusoids.
+            - The resultant sum of sinusoids.
+    """
     length = len(data)
     sinusoids = []
     residue = np.array(data)
     resultant = np.zeros(length)
 
-    relative_frequency = ((np.pi*2) / length)
+    relative_frequency = ((np.pi * 2) / length)
     reference_size = reference_size if reference_size <= 1 else pow(2, reference_size)
     frequency = reference_size * relative_frequency
     num_peaks = 3
 
     def generate_sin(frequency, data):
-        # Initial amplitude
+        """
+        Generates a sinusoid with optimized amplitude and phase for a given frequency and data.
+
+        Args:
+            frequency: The frequency of the sinusoid.
+            data: The input data series.
+
+        Returns:
+            A tuple containing the amplitude, phase, mean difference, difference, and sinusoid.
+        """
         amplitude = 1
         phase = 0
 
@@ -153,53 +226,51 @@ def decompose_sinusoid(data, halving=2.0, precision=6, max_halvings=10, referenc
 
         _phase = -1
         _amplitude = -1
-        for _ in range(0, precision):  # Are not necessary too many precision cycles
-            # Find optimal phase
+        for _ in range(0, precision):
+            # Find optimal phase and amplitude
             phase = find_best_phase(data, frequency, amplitude, precision, peaks)
-
-            # Find optimal amplitude
             amplitude = find_best_amplitude(data, frequency, phase, precision, peaks)
 
             if (abs(_phase - phase) + abs(_amplitude - amplitude)) / 2 < negligible:
-                break
+                break  # Stop if the change in phase and amplitude is negligible
 
         # Generate the optimal sinusoid
         sinusoid = generate_sinusoid(frequency, amplitude, phase, length)
 
-        # Update the residue
-        diff = residue - sinusoid
-
+        # Calculate the difference and mean difference
+        diff = data - sinusoid
         mean_diff = calculate_mean(diff)
 
         return amplitude, phase, mean_diff, diff, sinusoid
 
-    mean_residue = 1994
-    mean_repeat = 0
+    mean_residue = 1994  # Initialize with a large value
     prev_frequency = frequency
     next_frequency = frequency * 2
-    for _ in range(max_halvings):
-        if mean_residue == 0:
-            break
 
-        cur_residue = residue[:]
-        amplitude, phase, mean_diff, diff, sinusoid = generate_sin(frequency, cur_residue)
+    for _ in range(max_halvings):
+        if np.average(np.abs(residue)) < negligible:
+            break  # Stop if the average residue is below the threshold
+
+        # Generate the initial sinusoid
+        amplitude, phase, mean_diff, diff, sinusoid = generate_sin(frequency, residue)
 
         no_frequency_halving = False
         if prev_frequency != frequency:
             freq = frequency
             best_sin = None
-            reference_mean = 1994 # random max
+            reference_mean = mean_residue
             min_freq = prev_frequency
 
+            # Refine the frequency using binary search
             for _ in range(0, precision):
-                freq = (freq + min_freq)/2
-
-                _amplitude, _phase, _mean_diff, _diff, _sinusoid = generate_sin(freq, cur_residue)
+                freq = (freq + min_freq) / 2
+                _amplitude, _phase, _mean_diff, _diff, _sinusoid = generate_sin(freq, residue)
 
                 if _mean_diff > mean_diff or _mean_diff > reference_mean:
-                    break
+                    break  # Stop if the mean difference is not improving
 
-                if abs(mean_residue-_mean_diff) > abs(mean_diff-_mean_diff):
+                # Adjust the search range based on the mean difference
+                if abs(mean_residue - _mean_diff) > abs(mean_diff - _mean_diff):
                     min_freq = frequency
                 else:
                     min_freq = frequency / halving
@@ -207,28 +278,29 @@ def decompose_sinusoid(data, halving=2.0, precision=6, max_halvings=10, referenc
                 reference_mean = _mean_diff
                 best_sin = [freq, _amplitude, _phase, _mean_diff, _diff, _sinusoid]
 
+            # Update the sinusoid if a better one is found
             if best_sin is not None:
                 frequency, amplitude, phase, mean_diff, diff, sinusoid = best_sin
                 no_frequency_halving = True
 
-        if mean_diff > mean_residue*2: # ignore calculation
+        if mean_diff > mean_residue * 2:  # Ignore the sinusoid if the mean difference is too large
             amplitude = 0
         else:
+            # Update the resultant, residue, and mean residue
             resultant += sinusoid
             residue = diff
             mean_residue = mean_diff
 
         if amplitude > 0:
-            # Save the current sinusoid
+            # Add the sinusoid to the list
             sinusoids.append({
                 'frequency': frequency / relative_frequency,
                 'phase': phase,
                 'amplitude': amplitude
             })
 
-        # Halve the frequency for the next sinusoid
+        # Update the frequencies for the next iteration
         prev_frequency = frequency
-
         if no_frequency_halving:
             frequency = prev_frequency * halving
         else:
@@ -237,13 +309,73 @@ def decompose_sinusoid(data, halving=2.0, precision=6, max_halvings=10, referenc
 
     return sinusoids, residue.tolist(), resultant
 
+def combine_sinusoids(sinusoids1, sinusoids2, minimum=0.01):
+    """
+    Combines two arrays of sinusoids into a single array with unique frequencies.
+
+    For sinusoids with the same frequency, it calculates the combined amplitude and phase
+    by treating them as complex numbers and summing them. It also handles cases where
+    sinusoids with the same frequency might be located at different positions in the input arrays.
+
+    Args:
+      sinusoids1: The first array of sinusoids.
+      sinusoids2: The second array of sinusoids.
+      minimum: The minimum amplitude threshold for a sinusoid to be included in the result.
+
+    Returns:
+      A new array of sinusoids with unique frequencies and combined amplitudes and phases.
+    """
+
+    combined_sinusoids = {}
+
+    # Process both sinusoid arrays
+    for sinusoids in [sinusoids1, sinusoids2]:
+        for sinusoid in sinusoids:
+            freq = sinusoid['frequency']
+            amp = sinusoid['amplitude']
+            phase = sinusoid['phase']
+
+            # Convert amplitude and phase to complex number
+            if freq in combined_sinusoids:
+                existing_amp = combined_sinusoids[freq][0]
+                existing_phase = combined_sinusoids[freq][1]
+
+                # Simple check to potentially skip combining very small amplitudes
+                if min(existing_amp, amp) / max(existing_amp, amp) < (minimum*10):
+                    if amp > existing_amp:
+                        combined_sinusoids[freq] = [amp, phase]
+
+                combined_sinusoids[freq] = (amp * np.exp(1j * phase)) + (existing_amp * np.exp(1j * existing_phase))
+            else:
+                combined_sinusoids[freq] = [amp, phase]  # Store as a list initially
+
+    # Convert back to amplitude and phase
+    result = []
+    for freq, complex_sinusoid in combined_sinusoids.items():
+        if type(complex_sinusoid) is list:  # Check if it's still a list (not combined)
+            amplitude = complex_sinusoid[0]
+            phase = complex_sinusoid[1]
+        else:
+            amplitude = np.abs(complex_sinusoid)  # Calculate amplitude from complex number
+            phase = np.angle(complex_sinusoid)  # Calculate phase from complex number
+
+        if amplitude > minimum:  # Filter out sinusoids with very small amplitudes
+            result.append({
+                'frequency': freq,
+                'phase': phase,
+                'amplitude': amplitude
+            })
+
+    return result
+
 # Example usage:
 length = 100
 refPi = np.pi / (length / 2)
-
-#data = [np.sin(refPi * x) + (np.sin((refPi * x * 2) + (np.pi / 4))*0.5) + (np.sin(refPi * x * 4)) for x in range(length)]
 data = [np.sin(refPi * x) + (np.sin((refPi * x * 2) + (np.pi / 4))*0.5) + (np.sin(refPi * x * 3)) for x in range(length)]
 
-sinusoids, residue, resultant = decompose_sinusoid(data, halving=2, precision=10, max_halvings=10, reference_size=1)
+sinusoids_1, residue, resultant = decompose_sinusoid(data, halving=2, precision=10, max_halvings=10, reference_size=1)
+sinusoids_2, residue, resultant = decompose_sinusoid(residue, halving=2, precision=10, max_halvings=10, reference_size=1)
 
-print("Sinusoids:", sinusoids)
+print("Sinusoids 1:", sinusoids_1)
+print("Sinusoids 2:", sinusoids_2)
+print("Total sinusoids: ", combine_sinusoids(sinusoids_1, sinusoids_2))

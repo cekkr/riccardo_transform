@@ -28,10 +28,36 @@ Sinusoids: [{'frequency': 1.0, 'phase': 0.19462381246299076, 'amplitude': 1}, {'
 
 With halving we mean how much the frequency doubles at each analysis cycle, with precision we mean how deeply we need to check the amplitude and phase (example, if the number to find is 0.3 the algorithm does 0 and 0.5, 0.25, 0.375 ... now that I think about it I have not implemented anything that stops automatically when the result is "extremely precise"), max_halvings and how many times the frequency doubles to look for matches and reference_size is how large the first frequency is with respect to the size of the given array.
 
+# Example of double cycling and combining
+
+```python
+length = 100
+refPi = np.pi / (length / 2)
+data = [np.sin(refPi * x) + (np.sin((refPi * x * 2) + (np.pi / 4))*0.5) + (np.sin(refPi * x * 3)) for x in range(length)]
+
+sinusoids_1, residue, resultant = decompose_sinusoid(data, halving=2, precision=10, max_halvings=10, reference_size=1)
+sinusoids_2, residue, resultant = decompose_sinusoid(residue, halving=2, precision=10, max_halvings=10, reference_size=1)
+
+print("Sinusoids 1:", sinusoids_1)
+print("Sinusoids 2:", sinusoids_2)
+print("Total sinusoids: ", combine_sinusoids(sinusoids_1, sinusoids_2))
+```
+
+Results:
+
+```
+Sinusoids 1: [{'frequency': 1.0, 'phase': 0.19462381246299076, 'amplitude': 1}, {'frequency': 2.0, 'phase': 0.7972865145035621, 'amplitude': 0.53125}, {'frequency': 3.0, 'phase': 0, 'amplitude': 0.96875}, {'frequency': 9.0, 'phase': 0.23220634176618896, 'amplitude': 0.0078125}, {'frequency': 8.0, 'phase': 0.01845570635424912, 'amplitude': 0.00286865234375}, {'frequency': 17.0, 'phase': 4.858884145627767, 'amplitude': 0.00286865234375}]
+
+Sinusoids 2: [{'frequency': 1.0, 'phase': 4.6709714991117774, 'amplitude': 0.2509765625}, {'frequency': 2.0, 'phase': 4.575097699868925, 'amplitude': 0.09375}, {'frequency': 4.0, 'phase': 0.10737865515199488, 'amplitude': 0.03125}, {'frequency': 13.0, 'phase': 3.141592653589793, 'amplitude': 0.0078125}, {'frequency': 44.99999999999999, 'phase': 5.691068723055729, 'amplitude': 0.00146484375}]
+
+Total sinusoids:  [{'frequency': 1.0, 'phase': np.float64(-0.059024974139288255), 'amplitude': np.float64(0.9724220892929857)}, {'frequency': 2.0, 'phase': np.float64(0.6756928770880679), 'amplitude': np.float64(0.4592330500096089)}, {'frequency': 3.0, 'phase': 0, 'amplitude': 0.96875}, {'frequency': 4.0, 'phase': 0.10737865515199488, 'amplitude': 0.03125}]
+```
+
 ## Last changes
 - Cycling for n precision find_best_phase and find_best_amplitude gives a great precision improvement
 - Code optimization
 - Relative frequencies
+- Double cycling decomposition and combine sinusoids
 
 # Credits
 
