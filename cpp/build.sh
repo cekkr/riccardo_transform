@@ -1,0 +1,1 @@
+g++ -o example example.cpp -std=c++17

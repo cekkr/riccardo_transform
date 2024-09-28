@@ -1,7 +1,6 @@
 import numpy as np
 from scipy.signal import find_peaks
 
-
 def find_peaks_iterative(array, n=3):
     """
     Finds the indices of peaks (positive and negative) in an array.
