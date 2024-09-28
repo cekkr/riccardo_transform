@@ -146,7 +146,8 @@ def decompose_sinusoid(data, halving=2.0, precision=6, max_halvings=10, referenc
     residue = np.array(data)
     resultant = np.zeros(length)
 
-    frequency = reference_size * ((np.pi*2) / length)
+    relative_frequency = ((np.pi*2) / length)
+    frequency = reference_size * relative_frequency
     num_peaks = 3
 
     mean_residue = calculate_mean(residue)
@@ -198,7 +199,7 @@ def decompose_sinusoid(data, halving=2.0, precision=6, max_halvings=10, referenc
         if amplitude > 0:
             # Save the current sinusoid
             sinusoids.append({
-                'frequency': frequency,
+                'frequency': frequency / relative_frequency,
                 'phase': phase,
                 'amplitude': amplitude
             })
@@ -214,7 +215,7 @@ def decompose_sinusoid(data, halving=2.0, precision=6, max_halvings=10, referenc
 # Example usage:
 length = 100
 refPi = np.pi / (length / 2)
-data = [np.sin(refPi * x) + (np.sin((refPi * x * 2) + (np.pi / 4))*0.75) for x in range(length)]
+data = [np.sin(refPi * x) + (np.sin((refPi * x * 2) + (np.pi / 4))*0.75) + (np.sin(refPi * x * 4)) for x in range(length)]
 
 sinusoids, residue, resultant = decompose_sinusoid(data, halving=2.0, precision=8, max_halvings=10, reference_size=1)
 print("Sinusoids:", sinusoids)
