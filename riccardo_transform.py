@@ -226,7 +226,7 @@ def decompose_sinusoid(data, halving=2.0, precision=6, max_halvings=10, referenc
 
         _phase = -1
         _amplitude = -1
-        for _ in range(0, precision):
+        for _ in range(0, int(precision/2)):
             # Find optimal phase and amplitude
             phase = find_best_phase(data, frequency, amplitude, precision, peaks)
             amplitude = find_best_amplitude(data, frequency, phase, precision, peaks)
@@ -262,7 +262,7 @@ def decompose_sinusoid(data, halving=2.0, precision=6, max_halvings=10, referenc
             min_freq = prev_frequency
 
             # Refine the frequency using binary search
-            for _ in range(0, precision):
+            for _ in range(0, int(precision/2)):
                 freq = (freq + min_freq) / 2
                 _amplitude, _phase, _mean_diff, _diff, _sinusoid = generate_sin(freq, residue)
 
@@ -309,7 +309,7 @@ def decompose_sinusoid(data, halving=2.0, precision=6, max_halvings=10, referenc
 
     return sinusoids, residue.tolist(), resultant
 
-def combine_sinusoids(sinusoids1, sinusoids2, minimum=0.01):
+def combine_sinusoids(sinusoids1, sinusoids2, minimum=0.05):
     """
     Combines two arrays of sinusoids into a single array with unique frequencies.
 
@@ -341,7 +341,7 @@ def combine_sinusoids(sinusoids1, sinusoids2, minimum=0.01):
                 existing_phase = combined_sinusoids[freq][1]
 
                 # Simple check to potentially skip combining very small amplitudes
-                if min(existing_amp, amp) / max(existing_amp, amp) < (minimum*10):
+                if min(existing_amp, amp) / max(existing_amp, amp) < (minimum*2):
                     if amp > existing_amp:
                         combined_sinusoids[freq] = [amp, phase]
 
@@ -366,16 +366,25 @@ def combine_sinusoids(sinusoids1, sinusoids2, minimum=0.01):
                 'amplitude': amplitude
             })
 
+    result.sort(key=lambda item: item['frequency'])
     return result
 
 # Example usage:
 length = 100
 refPi = np.pi / (length / 2)
-data = [np.sin(refPi * x) + (np.sin((refPi * x * 2) + (np.pi / 4))*0.5) + (np.sin(refPi * x * 3)) for x in range(length)]
+data = [np.sin(refPi * x) + (np.sin((refPi * x * 2) + (np.pi / 4))*0.5) + (np.sin(refPi * x * 3)) + (np.sin(refPi * x * 8)) for x in range(length)]
 
-sinusoids_1, residue, resultant = decompose_sinusoid(data, halving=2, precision=10, max_halvings=10, reference_size=1)
-sinusoids_2, residue, resultant = decompose_sinusoid(residue, halving=2, precision=10, max_halvings=10, reference_size=1)
+sinusoids_1, residue, resultant = decompose_sinusoid(data, halving=2, precision=8, max_halvings=10, reference_size=1)
+sinusoids_2, residue, resultant = decompose_sinusoid(residue, halving=2, precision=8, max_halvings=10, reference_size=1)
 
 print("Sinusoids 1:", sinusoids_1)
 print("Sinusoids 2:", sinusoids_2)
 print("Total sinusoids: ", combine_sinusoids(sinusoids_1, sinusoids_2))
+
+'''
+Results:
+
+Sinusoids 1: [{'frequency': 1.0, 'phase': 0.07516505860639641, 'amplitude': 0.953125}, {'frequency': 2.0, 'phase': 1.556990499703926, 'amplitude': 0.28125}, {'frequency': 3.0, 'phase': 0.06979612584879667, 'amplitude': 1}, {'frequency': 9.0, 'phase': 5.229340505902151, 'amplitude': 0.0166015625}, {'frequency': 8.0, 'phase': 0, 'amplitude': 1}]
+Sinusoids 2: [{'frequency': 1.0, 'phase': 0.013422331893999362, 'amplitude': 0.037109375}, {'frequency': 3.0, 'phase': 4.344233591292136, 'amplitude': 0.04296875}, {'frequency': 4.0, 'phase': 1.1167380135807468, 'amplitude': 0.017578125}, {'frequency': 8.0, 'phase': 5.014583195598162, 'amplitude': 0.005859375}, {'frequency': 10.0, 'phase': 0.40803888957758055, 'amplitude': 0.005859375}]
+Total sinusoids:  [{'frequency': 1.0, 'phase': np.float64(0.07285253743630027), 'amplitude': np.float64(0.990166311532301)}, {'frequency': 2.0, 'phase': 1.556990499703926, 'amplitude': 0.28125}, {'frequency': 3.0, 'phase': np.float64(0.030181145777831077), 'amplitude': np.float64(0.9825484677073023)}, {'frequency': 8.0, 'phase': np.float64(-0.0055840659740489), 'amplitude': np.float64(1.0017594603231335)}]
+'''
