@@ -13,7 +13,8 @@ In practice it works like this, in a way similar to the various FFTs: you take a
 ```python
 length = 100
 refPi = np.pi / (length / 2)
-data = [np.sin(refPi * x) + (np.sin((refPi * x * 2) + (np.pi / 4))*0.75) + (np.sin(refPi * x * 4)) for x in range(length)]
+
+data = [np.sin(refPi * x) + (np.sin((refPi * x * 2) + (np.pi / 4))*0.5) + (np.sin(refPi * x * 3)) for x in range(length)]
 
 sinusoids, residue, resultant = decompose_sinusoid(data, halving=2.0, precision=8, max_halvings=10, reference_size=1)
 print("Sinusoids:", sinusoids)
@@ -22,7 +23,7 @@ print("Sinusoids:", sinusoids)
 Results:
 
 ```
-Sinusoids: [{'frequency': 1.0, 'phase': 0, 'amplitude': 1}, {'frequency': 2.0, 'phase': 0.7838641826095627, 'amplitude': 0.7607421875}, {'frequency': 4.0, 'phase': 0, 'amplitude': 1}]
+Sinusoids: [{'frequency': 1.0, 'phase': 0.19462381246299076, 'amplitude': 1}, {'frequency': 2.0, 'phase': 0.7972865145035621, 'amplitude': 0.5277099609375}, {'frequency': 3.0, 'phase': 0, 'amplitude': 0.97265625}, {'frequency': 6.0, 'phase': 5.25350070331135, 'amplitude': 0.0321044921875}, {'frequency': 7.0, 'phase': 4.59580644050538, 'amplitude': 0.0321044921875}, {'frequency': 14.0, 'phase': 4.81324821718817, 'amplitude': 0.0321044921875}, {'frequency': 15.0, 'phase': 4.516039439535327, 'amplitude': 0.0321044921875}, {'frequency': 30.0, 'phase': 4.270986008670596, 'amplitude': 0.0321044921875}, {'frequency': 32.0, 'phase': 0.0859029241215959, 'amplitude': 0.0321044921875}, {'frequency': 48.0, 'phase': 5.760864848904525, 'amplitude': 0.0321044921875}]
 ```
 
 With halving we mean how much the frequency doubles at each analysis cycle, with precision we mean how deeply we need to check the amplitude and phase (example, if the number to find is 0.3 the algorithm does 0 and 0.5, 0.25, 0.375 ... now that I think about it I have not implemented anything that stops automatically when the result is "extremely precise"), max_halvings and how many times the frequency doubles to look for matches and reference_size is how large the first frequency is with respect to the size of the given array.

@@ -41,21 +41,6 @@ def find_peaks_iterative(array, n=3):
 
     return peak_indices
 
-def mean_absolute_difference(arr1, arr2):
-    """
-    Calculates the mean absolute difference between two arrays of numbers.
-
-    Args:
-      arr1: The first array.
-      arr2: The second array.
-
-    Returns:
-      The mean absolute difference.
-    """
-    if len(arr1) != len(arr2):
-        raise ValueError("Arrays must have the same length")
-    return np.mean([abs(a - b) for a, b in zip(arr1, arr2)])
-
 def generate_sinusoid(freq, amplitude, phase, length):
     """Generates a sinusoid given the frequency, amplitude, and phase."""
     x = np.arange(length)
@@ -134,7 +119,7 @@ def find_best_amplitude(residue, frequency, phase, precision, peak_indices):
 
 def calculate_mean(numbers):
     """Calculates the mean of a list of numbers."""
-    return sum(abs(numbers)) / len(numbers)
+    return np.abs(np.average(numbers))
 
 def union_without_duplicates(list1, list2):
     """Merges two lists without repeating equal elements."""
@@ -147,39 +132,35 @@ def decompose_sinusoid(data, halving=2.0, precision=6, max_halvings=10, referenc
     resultant = np.zeros(length)
 
     relative_frequency = ((np.pi*2) / length)
+    reference_size = reference_size if reference_size <= 1 else pow(2, reference_size)
     frequency = reference_size * relative_frequency
     num_peaks = 3
 
-    mean_residue = calculate_mean(residue)
-    initial_mean = mean_residue
-    for _ in range(max_halvings):
-        if mean_residue == 0:
-            break
-
+    def generate_sin(frequency, data):
         # Initial amplitude
         amplitude = 1
         phase = 0
 
         base_wave = generate_sinusoid(frequency, amplitude, phase, length)
-        wave = base_wave - residue
+        wave = base_wave - data
         peaks = find_peaks_iterative(wave, num_peaks)
 
         base_wave = generate_sinusoid(frequency, amplitude, np.pi, length)
-        wave = base_wave - residue
+        wave = base_wave - data
         peaks_2 = find_peaks_iterative(wave, num_peaks)
 
         peaks = union_without_duplicates(peaks, peaks_2)
 
         _phase = -1
         _amplitude = -1
-        for _ in range(0, precision): # Are not necessary too many precision cycles
+        for _ in range(0, precision):  # Are not necessary too many precision cycles
             # Find optimal phase
-            phase = find_best_phase(residue, frequency, amplitude, precision, peaks)
+            phase = find_best_phase(data, frequency, amplitude, precision, peaks)
 
             # Find optimal amplitude
-            amplitude = find_best_amplitude(residue, frequency, phase, precision, peaks)
+            amplitude = find_best_amplitude(data, frequency, phase, precision, peaks)
 
-            if (abs(_phase - phase) + abs(_amplitude - amplitude))/2 < negligible:
+            if (abs(_phase - phase) + abs(_amplitude - amplitude)) / 2 < negligible:
                 break
 
         # Generate the optimal sinusoid
@@ -189,7 +170,48 @@ def decompose_sinusoid(data, halving=2.0, precision=6, max_halvings=10, referenc
         diff = residue - sinusoid
 
         mean_diff = calculate_mean(diff)
-        if abs(mean_diff) > abs(mean_residue): # ignore calculation
+
+        return amplitude, phase, mean_diff, diff, sinusoid
+
+    mean_residue = 1994
+    mean_repeat = 0
+    prev_frequency = frequency
+    next_frequency = frequency * 2
+    for _ in range(max_halvings):
+        if mean_residue == 0:
+            break
+
+        cur_residue = residue[:]
+        amplitude, phase, mean_diff, diff, sinusoid = generate_sin(frequency, cur_residue)
+
+        no_frequency_halving = False
+        if prev_frequency != frequency:
+            freq = frequency
+            best_sin = None
+            reference_mean = 1994 # random max
+            min_freq = prev_frequency
+
+            for _ in range(0, precision):
+                freq = (freq + min_freq)/2
+
+                _amplitude, _phase, _mean_diff, _diff, _sinusoid = generate_sin(freq, cur_residue)
+
+                if _mean_diff > mean_diff or _mean_diff > reference_mean:
+                    break
+
+                if abs(mean_residue-_mean_diff) > abs(mean_diff-_mean_diff):
+                    min_freq = frequency
+                else:
+                    min_freq = frequency / halving
+
+                reference_mean = _mean_diff
+                best_sin = [freq, _amplitude, _phase, _mean_diff, _diff, _sinusoid]
+
+            if best_sin is not None:
+                frequency, amplitude, phase, mean_diff, diff, sinusoid = best_sin
+                no_frequency_halving = True
+
+        if mean_diff > mean_residue*2: # ignore calculation
             amplitude = 0
         else:
             resultant += sinusoid
@@ -204,18 +226,24 @@ def decompose_sinusoid(data, halving=2.0, precision=6, max_halvings=10, referenc
                 'amplitude': amplitude
             })
 
-        if mean_residue < initial_mean * negligible:
-            break
-
         # Halve the frequency for the next sinusoid
-        frequency *= halving
+        prev_frequency = frequency
+
+        if no_frequency_halving:
+            frequency = prev_frequency * halving
+        else:
+            frequency = next_frequency
+            next_frequency *= halving
 
     return sinusoids, residue.tolist(), resultant
 
 # Example usage:
 length = 100
 refPi = np.pi / (length / 2)
-data = [np.sin(refPi * x) + (np.sin((refPi * x * 2) + (np.pi / 4))*0.75) + (np.sin(refPi * x * 4)) for x in range(length)]
 
-sinusoids, residue, resultant = decompose_sinusoid(data, halving=2.0, precision=8, max_halvings=10, reference_size=1)
+#data = [np.sin(refPi * x) + (np.sin((refPi * x * 2) + (np.pi / 4))*0.5) + (np.sin(refPi * x * 4)) for x in range(length)]
+data = [np.sin(refPi * x) + (np.sin((refPi * x * 2) + (np.pi / 4))*0.5) + (np.sin(refPi * x * 3)) for x in range(length)]
+
+sinusoids, residue, resultant = decompose_sinusoid(data, halving=2, precision=10, max_halvings=10, reference_size=1)
+
 print("Sinusoids:", sinusoids)
