@@ -41,7 +41,7 @@ std::vector<std::size_t> find_peaks(const std::vector<double>& array) {
 
             currentTrend = Trend::Decreasing;
         } else { 
-            peaks.push_back(i - 1); // Peak found
+            //peaks.push_back(i - 1); // Peak found (ignore)
             currentTrend = Trend::None;
         }
     }
