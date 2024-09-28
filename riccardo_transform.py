@@ -64,9 +64,11 @@ def generate_sinusoid(freq, amplitude, phase, length):
 def calculate_sin(freq, amplitude, phase, x):
     return amplitude * np.sin((x * freq) + phase)
 
-def find_best_phase(residue, frequency, amplitude, precision, length, peak_indices):
+def find_best_phase(residue, frequency, amplitude, precision, peak_indices):
     """Refines the optimal phase by minimizing the error at peak indices."""
     phases = [0, np.pi, np.pi*1.75]
+    best_phase = -1
+    num_identical = 0
     for _ in range(precision):
         errors = []
         for phase in phases:
@@ -77,7 +79,14 @@ def find_best_phase(residue, frequency, amplitude, precision, length, peak_indic
                 diffs.append(abs(val - res))
             errors.append(np.max(diffs))
 
-        best_phase = phases[np.argmin(errors)]
+        best = phases[np.argmin(errors)]
+
+        if best == best_phase:
+            num_identical += 1
+            if num_identical >= int(precision/2):
+                break
+
+        best_phase = best
 
         # Binary search refinement
         step = (max(phases) - min(phases)) / 2
@@ -89,9 +98,11 @@ def find_best_phase(residue, frequency, amplitude, precision, length, peak_indic
 
     return best_phase
 
-def find_best_amplitude(residue, frequency, phase, precision, length, peak_indices):
+def find_best_amplitude(residue, frequency, phase, precision, peak_indices):
     """Refines the optimal amplitude by minimizing the error at peak indices."""
     amplitudes = [0.25, 1, 2]
+    best_amplitude = -1
+    num_identical = 0
     for _ in range(precision):
         errors = []
         for amplitude in amplitudes:
@@ -102,7 +113,14 @@ def find_best_amplitude(residue, frequency, phase, precision, length, peak_indic
                 diffs.append(abs(val - res))
             errors.append(np.max(diffs))
 
-        best_amplitude = amplitudes[np.argmin(errors)]
+        best = amplitudes[np.argmin(errors)]
+
+        if best_amplitude == best:
+            num_identical += 1
+            if num_identical >= int(precision/2):
+                break
+
+        best_amplitude = best
 
         # Binary search refinement
         step = (max(amplitudes) - min(amplitudes)) / 2
@@ -122,7 +140,7 @@ def union_without_duplicates(list1, list2):
     """Merges two lists without repeating equal elements."""
     return list(set(list1) | set(list2))
 
-def decompose_sinusoid(data, halving=2.0, precision=6, max_halvings=10, reference_size=1):
+def decompose_sinusoid(data, halving=2.0, precision=6, max_halvings=10, reference_size=1, negligible=0.01):
     length = len(data)
     sinusoids = []
     residue = np.array(data)
@@ -132,6 +150,7 @@ def decompose_sinusoid(data, halving=2.0, precision=6, max_halvings=10, referenc
     num_peaks = 3
 
     mean_residue = calculate_mean(residue)
+    initial_mean = mean_residue
     for _ in range(max_halvings):
         if mean_residue == 0:
             break
@@ -150,12 +169,17 @@ def decompose_sinusoid(data, halving=2.0, precision=6, max_halvings=10, referenc
 
         peaks = union_without_duplicates(peaks, peaks_2)
 
-        for _ in range(0, max(int(precision/2), 1)): # Are not necessary too many precision cycles
+        _phase = -1
+        _amplitude = -1
+        for _ in range(0, precision): # Are not necessary too many precision cycles
             # Find optimal phase
-            phase = find_best_phase(residue, frequency, amplitude, precision, length, peaks)
+            phase = find_best_phase(residue, frequency, amplitude, precision, peaks)
 
             # Find optimal amplitude
-            amplitude = find_best_amplitude(residue, frequency, phase, precision, length, peaks)
+            amplitude = find_best_amplitude(residue, frequency, phase, precision, peaks)
+
+            if (abs(_phase - phase) + abs(_amplitude - amplitude))/2 < negligible:
+                break
 
         # Generate the optimal sinusoid
         sinusoid = generate_sinusoid(frequency, amplitude, phase, length)
@@ -178,6 +202,9 @@ def decompose_sinusoid(data, halving=2.0, precision=6, max_halvings=10, referenc
                 'phase': phase,
                 'amplitude': amplitude
             })
+
+        if mean_residue < initial_mean * negligible:
+            break
 
         # Halve the frequency for the next sinusoid
         frequency *= halving
