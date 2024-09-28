@@ -72,7 +72,7 @@ def calculate_sin(freq, amplitude, phase, x):
 
 def find_best_phase(residue, frequency, amplitude, precision, length, peak_indices):
     """Refines the optimal phase by minimizing the error at peak indices."""
-    phases = [0, np.pi, np.pi*2]
+    phases = [0, np.pi, np.pi*1.75]
     for _ in range(precision):
         errors = []
         for phase in phases:
@@ -128,7 +128,7 @@ def union_without_duplicates(list1, list2):
     """Merges two lists without repeating equal elements."""
     return list(set(list1) | set(list2))
 
-def decompose_sinusoid(data, halving=2.0, precision=5, max_halvings=10, reference_size=1):
+def decompose_sinusoid(data, halving, precision, max_halvings, reference_size):
     length = len(data)
     sinusoids = []
     residue = np.array(data)
@@ -144,8 +144,9 @@ def decompose_sinusoid(data, halving=2.0, precision=5, max_halvings=10, referenc
 
         # Initial amplitude
         amplitude = 1
+        phase = 0
 
-        base_wave = generate_sinusoid(frequency, amplitude, 0, length)
+        base_wave = generate_sinusoid(frequency, amplitude, phase, length)
         wave = base_wave - residue
         peaks = find_peaks_iterative(wave, num_peaks)
 
@@ -155,32 +156,33 @@ def decompose_sinusoid(data, halving=2.0, precision=5, max_halvings=10, referenc
 
         peaks = union_without_duplicates(peaks, peaks_2)
 
-        # Find optimal phase
-        optimal_phase = find_best_phase(residue, frequency, amplitude, precision, length, peaks)
+        for _ in range(0, precision):
+            # Find optimal phase
+            phase = find_best_phase(residue, frequency, amplitude, precision, length, peaks)
 
-        # Find optimal amplitude
-        optimal_amplitude = find_best_amplitude(residue, frequency, optimal_phase, precision, length, peaks)
+            # Find optimal amplitude
+            amplitude = find_best_amplitude(residue, frequency, phase, precision, length, peaks)
 
         # Generate the optimal sinusoid
-        sinusoid = generate_sinusoid(frequency, optimal_amplitude, optimal_phase, length)
+        sinusoid = generate_sinusoid(frequency, amplitude, phase, length)
 
         # Update the residue
         diff = residue - sinusoid
 
         mean_diff = calculate_mean(diff)
         if abs(mean_diff) > abs(mean_residue): # ignore calculation
-            optimal_amplitude = 0
+            amplitude = 0
         else:
             resultant += sinusoid
             residue = diff
             mean_residue = mean_diff
 
-        if optimal_amplitude > 0:
+        if amplitude > 0:
             # Save the current sinusoid
             sinusoids.append({
                 'frequency': frequency,
-                'phase': optimal_phase,
-                'amplitude': optimal_amplitude
+                'phase': phase,
+                'amplitude': amplitude
             })
 
         # Halve the frequency for the next sinusoid
@@ -205,6 +207,9 @@ Results:
 ```
 Sinusoids: [{'frequency': 0.06283185307179587, 'phase': 0, 'amplitude': 1}, {'frequency': 0.12566370614359174, 'phase': 0.7884661249732198, 'amplitude': 0.998291015625}]
 ```
+
+## Last changes
+- Cycling for n precision find_best_phase and find_best_amplitude gives a great precision improvement
 
 # Credits
 

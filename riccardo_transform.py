@@ -66,7 +66,7 @@ def calculate_sin(freq, amplitude, phase, x):
 
 def find_best_phase(residue, frequency, amplitude, precision, length, peak_indices):
     """Refines the optimal phase by minimizing the error at peak indices."""
-    phases = [0, np.pi, np.pi*2]
+    phases = [0, np.pi, np.pi*1.75]
     for _ in range(precision):
         errors = []
         for phase in phases:
@@ -138,8 +138,9 @@ def decompose_sinusoid(data, halving, precision, max_halvings, reference_size):
 
         # Initial amplitude
         amplitude = 1
+        phase = 0
 
-        base_wave = generate_sinusoid(frequency, amplitude, 0, length)
+        base_wave = generate_sinusoid(frequency, amplitude, phase, length)
         wave = base_wave - residue
         peaks = find_peaks_iterative(wave, num_peaks)
 
@@ -149,32 +150,33 @@ def decompose_sinusoid(data, halving, precision, max_halvings, reference_size):
 
         peaks = union_without_duplicates(peaks, peaks_2)
 
-        # Find optimal phase
-        optimal_phase = find_best_phase(residue, frequency, amplitude, precision, length, peaks)
+        for _ in range(0, precision):
+            # Find optimal phase
+            phase = find_best_phase(residue, frequency, amplitude, precision, length, peaks)
 
-        # Find optimal amplitude
-        optimal_amplitude = find_best_amplitude(residue, frequency, optimal_phase, precision, length, peaks)
+            # Find optimal amplitude
+            amplitude = find_best_amplitude(residue, frequency, phase, precision, length, peaks)
 
         # Generate the optimal sinusoid
-        sinusoid = generate_sinusoid(frequency, optimal_amplitude, optimal_phase, length)
+        sinusoid = generate_sinusoid(frequency, amplitude, phase, length)
 
         # Update the residue
         diff = residue - sinusoid
 
         mean_diff = calculate_mean(diff)
         if abs(mean_diff) > abs(mean_residue): # ignore calculation
-            optimal_amplitude = 0
+            amplitude = 0
         else:
             resultant += sinusoid
             residue = diff
             mean_residue = mean_diff
 
-        if optimal_amplitude > 0:
+        if amplitude > 0:
             # Save the current sinusoid
             sinusoids.append({
                 'frequency': frequency,
-                'phase': optimal_phase,
-                'amplitude': optimal_amplitude
+                'phase': phase,
+                'amplitude': amplitude
             })
 
         # Halve the frequency for the next sinusoid
@@ -185,7 +187,7 @@ def decompose_sinusoid(data, halving, precision, max_halvings, reference_size):
 # Example usage:
 length = 100
 refPi = np.pi / (length / 2)
-data = [np.sin(refPi * x) + np.sin((refPi * x * 2) + (np.pi / 4)) for x in range(length)]
+data = [np.sin(refPi * x) + (np.sin((refPi * x * 2) + (np.pi / 4))*0.75) for x in range(length)]
 
 sinusoids, residue, resultant = decompose_sinusoid(data, halving=2.0, precision=10, max_halvings=10, reference_size=1)
 print("Sinusoids:", sinusoids)
