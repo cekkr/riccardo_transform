@@ -128,7 +128,7 @@ def union_without_duplicates(list1, list2):
     """Merges two lists without repeating equal elements."""
     return list(set(list1) | set(list2))
 
-def decompose_sinusoid(data, halving, precision, max_halvings, reference_size):
+def decompose_sinusoid(data, halving=2.0, precision=10, max_halvings=10, reference_size=1):
     length = len(data)
     sinusoids = []
     residue = np.array(data)
@@ -156,7 +156,7 @@ def decompose_sinusoid(data, halving, precision, max_halvings, reference_size):
 
         peaks = union_without_duplicates(peaks, peaks_2)
 
-        for _ in range(0, precision):
+        for _ in range(0, max(int(precision/3), 1)): # Are not necessary too many precision cycles
             # Find optimal phase
             phase = find_best_phase(residue, frequency, amplitude, precision, length, peaks)
 
@@ -196,7 +196,7 @@ def decompose_sinusoid(data, halving, precision, max_halvings, reference_size):
 ```python
 length = 100
 refPi = np.pi / (length / 2)
-data = [np.sin(refPi * x) + np.sin((refPi * x * 2) + (np.pi / 4)) for x in range(length)]
+data = [np.sin(refPi * x) + (np.sin((refPi * x * 2) + (np.pi / 4))*0.75) for x in range(length)]
 
 sinusoids, residue, resultant = decompose_sinusoid(data, halving=2.0, precision=10, max_halvings=10, reference_size=1)
 print("Sinusoids:", sinusoids)
@@ -205,11 +205,11 @@ print("Sinusoids:", sinusoids)
 Results:
 
 ```
-Sinusoids: [{'frequency': 0.06283185307179587, 'phase': 0, 'amplitude': 1}, {'frequency': 0.12566370614359174, 'phase': 0.7884661249732198, 'amplitude': 0.998291015625}]
+Sinusoids: [{'frequency': 0.06283185307179587, 'phase': 0, 'amplitude': 1}, {'frequency': 0.12566370614359174, 'phase': 0.7838641826095627, 'amplitude': 0.75048828125}]
 ```
 
 ## Last changes
-- Cycling for n precision find_best_phase and find_best_amplitude gives a great precision improvement
+- Cycling for n precision (divided by 3, is not necessary too many cycles) find_best_phase and find_best_amplitude gives a great precision improvement
 
 # Credits
 

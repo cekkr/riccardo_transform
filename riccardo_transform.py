@@ -122,7 +122,7 @@ def union_without_duplicates(list1, list2):
     """Merges two lists without repeating equal elements."""
     return list(set(list1) | set(list2))
 
-def decompose_sinusoid(data, halving, precision, max_halvings, reference_size):
+def decompose_sinusoid(data, halving=2.0, precision=10, max_halvings=10, reference_size=1):
     length = len(data)
     sinusoids = []
     residue = np.array(data)
@@ -150,7 +150,7 @@ def decompose_sinusoid(data, halving, precision, max_halvings, reference_size):
 
         peaks = union_without_duplicates(peaks, peaks_2)
 
-        for _ in range(0, precision):
+        for _ in range(0, max(int(precision/3), 1)): # Are not necessary too many precision cycles
             # Find optimal phase
             phase = find_best_phase(residue, frequency, amplitude, precision, length, peaks)
 
