@@ -1,5 +1,18 @@
+//
+//  RiccardoTransform.swift
+//  RichTransfTest
+//
+//  Created by Riccardo Cecchini on 29/09/24.
+//
+
 import MetalKit
 import Foundation
+
+struct Sinusoid {
+    let frequency: Float
+    let amplitude: Float
+    let phase: Float
+}
 
 func decomposeSinusoid(data: [Float], halving: Float, precision: UInt32, maxHalvings: UInt32, referenceSize: Float, negligible: Float) -> ([Sinusoid], [Float]) {
 
@@ -57,7 +70,7 @@ func decomposeSinusoid(data: [Float], halving: Float, precision: UInt32, maxHalv
     computeEncoder.setBytes(&negligibleVar, length: MemoryLayout<Float>.stride, index: 8)
 
     // 8. Set the threadgroup and grid dimensions
-    let threadsPerThreadgroup = MTLSizeMake(pipelineState.maxTotalThreadsPerThreadgroup, 1, 1) 
+    let threadsPerThreadgroup = MTLSizeMake(pipelineState.maxTotalThreadsPerThreadgroup, 1, 1)
     let threadsPerGrid = MTLSizeMake(dataCount, 1, 1)
     computeEncoder.dispatchThreads(threadsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
 
@@ -73,21 +86,91 @@ func decomposeSinusoid(data: [Float], halving: Float, precision: UInt32, maxHalv
     return (sinusoids, resultant)
 }
 
-// Example input data
+func combineSinusoids(sinusoids1: [Sinusoid], sinusoids2: [Sinusoid], minimum: Float = 0.05) -> [Sinusoid] {
+    var combinedSinusoids: [Float: (amplitude: Float, phase: Float)] = [:]
 
-let length = 100
-let refPi = Double.pi / (Double(length) / 2.0)
+    // Process both sinusoid arrays
+    for sinusoids in [sinusoids1, sinusoids2] {
+        for sinusoid in sinusoids {
+            let freq = sinusoid.frequency
+            let amp = sinusoid.amplitude
+            let phase = sinusoid.phase
 
-let data: [Double] = (0..<length).map { x in
-    let xDouble = Double(x)
-    return sin(refPi * xDouble) +
-           (sin((refPi * xDouble * 2) + (Double.pi / 4.0)) * 0.5) +
-           sin(refPi * xDouble * 3) +
-           sin(refPi * xDouble * 8)
+            if let existing = combinedSinusoids[freq] {
+                // Simple check to potentially skip combining very small amplitudes
+                if min(existing.amplitude, amp) / max(existing.amplitude, amp) < (minimum * 2) {
+                    if amp > existing.amplitude {
+                        combinedSinusoids[freq] = (amplitude: amp, phase: phase)
+                    }
+                    continue // Skip to the next sinusoid
+                }
+
+                let complexSinusoid = Complex(length: amp, phase: phase) + Complex(length: existing.amplitude, phase: existing.phase)
+                combinedSinusoids[freq] = (amplitude: complexSinusoid.length, phase: complexSinusoid.phase)
+            } else {
+                combinedSinusoids[freq] = (amplitude: amp, phase: phase)
+            }
+        }
+    }
+
+    // Convert back to Sinusoid structs and filter
+    let result = combinedSinusoids.compactMap { (freq, values) -> Sinusoid? in
+        let amplitude = values.amplitude
+        let phase = values.phase
+        if amplitude > minimum {
+            return Sinusoid(frequency: freq, amplitude: amplitude, phase: phase)
+        } else {
+            return nil
+        }
+    }.sorted { $0.frequency < $1.frequency }
+
+    return result
 }
 
-// Call the function with your desired parameters
-let (sinusoids, resultant) = decomposeSinusoid(data: data, halving: 2.0, precision: 10, maxHalvings: 50, referenceSize: 1.0, negligible: 0.01)
+struct Complex {
+    let length: Float
+    let phase: Float
 
-// Now you have the extracted sinusoids in the 'sinusoids' array
-// and the reconstructed signal in the 'resultant' array
+    init(length: Float, phase: Float) {
+        self.length = length
+        self.phase = phase
+    }
+
+    static func +(lhs: Complex, rhs: Complex) -> Complex {
+        let real = lhs.length * cos(lhs.phase) + rhs.length * cos(rhs.phase)
+        let imag = lhs.length * sin(lhs.phase) + rhs.length * sin(rhs.phase)
+        let length = sqrt(real * real + imag * imag)
+        let phase = atan2(imag, real)
+        return Complex(length: length, phase: phase)
+    }
+}
+
+// Example input data
+func exampleUsage(){
+    let length = 100
+    let refPi = Float.pi / (Float(length) / 2.0)
+    
+    let data: [Float] = (0..<length).map { x in
+        let xDouble = Float(x)
+        return sin(refPi * xDouble) +
+        (sin((refPi * xDouble * 2) + (Float.pi / 4.0)) * 0.5) +
+        sin(refPi * xDouble * 3) +
+        sin(refPi * xDouble * 8)
+    }
+    
+    // Call the function with your desired parameters
+    let (sinusoids, resultant) = decomposeSinusoid(data: data, halving: 2.0, precision: 10, maxHalvings: 50, referenceSize: 1.0, negligible: 0.01)
+    
+    // Print the extracted sinusoids
+    print("Extracted Sinusoids:")
+    for sinusoid in sinusoids {
+       print("Frequency: \(sinusoid.frequency), Amplitude: \(sinusoid.amplitude), Phase: \(sinusoid.phase)")
+    }
+
+    // Print the reconstructed signal (resultant)
+    print("\nReconstructed Signal:")
+    for value in resultant {
+       print(value)
+    }
+}
+
