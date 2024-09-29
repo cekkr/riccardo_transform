@@ -233,109 +233,6 @@ int compact_peaks(device int* peaks, uint length, uint divisionPoint) {
     return length - removed;
 }
 
-// Kernel function for decompose_sinusoid
-kernel void decompose_sinusoid_kernel(const device float* data [[buffer(0)]],
-                                      device Sinusoid* sinusoids [[buffer(1)]],
-                                      device float* residue [[buffer(2)]],
-                                      device float* resultant [[buffer(3)]],
-                                      constant float& halving [[buffer(4)]],
-                                      constant uint& precision [[buffer(5)]],
-                                      constant uint& max_halvings [[buffer(6)]],
-                                      constant float& reference_size [[buffer(7)]],
-                                      constant float& negligible [[buffer(8)]],
-                                      constant uint& sinusoidsCount [[buffer(9)]],
-                                      constant uint& peaksCount [[buffer(10)]],
-                                      device int* peaks [[buffer(11)]],
-                                      device float* currentSignal [[buffer(12)]],
-                                      uint size [[threads_per_grid]],
-                                      uint gid [[thread_position_in_grid]]) {
-
-    float PI = acos(-1.0f);
-
-    uint length = size;
-    float relative_frequency = (2.0f * PI) / float(length);
-    float frequency = (reference_size <= 1.0f ? reference_size : pow(2.0f, reference_size)) * relative_frequency;
-
-    // Initialize residue with data
-    for (uint i = gid; i < length; i += size) {
-        residue[i] = data[i];
-        resultant[i] = 0.0f;
-    }
-    threadgroup_barrier(mem_flags::mem_device);
-
-    float mean_residue = 1994.0f;
-    float prev_frequency = frequency;
-    float next_frequency = frequency * 2.0f;
-    
-    uint sinusoidCount = 0;
-
-    for (uint i = 0; i < max_halvings; ++i) {
-        if (calculate_mean_abs(residue, length) < negligible) {
-            break;
-        }
-
-        // Copy residue to threadgroup memory
-        for (uint j = gid; j < length; j += size) {
-            residue[j] = residue[j];
-        }
-        threadgroup_barrier(mem_flags::mem_device);
-
-        float amplitude = 1.0f;
-        float phase = 0.0f;
-        
-        // Find peaks for current frequency phase: 0
-        for (uint j = gid; j < length; j += size) {
-            currentSignal[j] = calculate_sin(frequency, amplitude, phase, j);
-        }
-        threadgroup_barrier(mem_flags::mem_device);
-                
-        uint peakCount0 = find_peaks(currentSignal, peaks, gid, size, peaksCount, 0);
-        threadgroup_barrier(mem_flags::mem_device);
-
-        // Find peaks for current frequency phase: PI
-        for (uint j = gid; j < length; j += size) {
-            currentSignal[j] = calculate_sin(frequency, amplitude, phase + PI, j);
-        }
-        threadgroup_barrier(mem_flags::mem_device);
-                
-        uint peakCount = find_peaks(currentSignal, peaks, gid, size, peaksCount, peakCount0);
-        threadgroup_barrier(mem_flags::mem_device);
-        
-        // Compact peaks
-        peakCount = compact_peaks(peaks, peakCount, peakCount0);
-
-        // Find best phase and amplitude
-        for (uint j = 0; j < precision / 2; ++j) {
-            phase = find_best_phase(residue, frequency, amplitude, precision, peaks, peakCount);
-            amplitude = find_best_amplitude(residue, frequency, phase, precision, peaks, peakCount);
-        }
-
-        // Generate sinusoid with best parameters
-        for (uint j = gid; j < length; j += size) {
-            resultant[j] += calculate_sin(frequency, amplitude, phase, j);
-            residue[j] -= calculate_sin(frequency, amplitude, phase, j);
-        }
-        threadgroup_barrier(mem_flags::mem_device);
-
-        mean_residue = calculate_mean(residue, length);
-
-       // Store the sinusoid parameters (atomically)
-        if (amplitude > 0.0f) {
-            sinusoids[sinusoidCount].frequency = frequency / relative_frequency;
-            sinusoids[sinusoidCount].amplitude = amplitude;
-            sinusoids[sinusoidCount].phase = phase;
-            sinusoidCount += 1;
-            threadgroup_barrier(mem_flags::mem_device);
-        }
-
-        prev_frequency = frequency;
-        frequency = next_frequency;
-        next_frequency *= halving;
-    }
-    
-    threadgroup_barrier(mem_flags::mem_device);
-}
-
 ///
 /// Frequency seeker
 ///
@@ -400,7 +297,7 @@ void generate_sinusoid_and_find_parameters(device float* data,
     for (uint j = gid; j < length; j += size) {
         float val = calculate_sin(frequency, amplitude, phase, j);
         resultant[j] += val;
-        residue[j] = data[j] - resultant[j];
+        residue[j] = data[j] - val;
     }
     threadgroup_barrier(mem_flags::mem_device);
 
