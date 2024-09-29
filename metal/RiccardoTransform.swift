@@ -46,6 +46,7 @@ func decomposeSinusoid(data: [Float], halving: Float, precision: UInt32, maxHalv
     let resultantBuffer = device.makeBuffer(length: dataCount * MemoryLayout<Float>.stride, options: [])!
     let peaksBuffer = device.makeBuffer(length: dataCount * MemoryLayout<Int>.stride, options: [])!
     let peaksCount = data.count < 1024 ? data.count : 1024
+    let currentSignalBuffer = device.makeBuffer(length: dataCount * MemoryLayout<Float>.stride, options: [])!
     
     // 6. Create a Metal command buffer and encoder
     guard let commandBuffer = commandQueue.makeCommandBuffer(),
@@ -76,7 +77,8 @@ func decomposeSinusoid(data: [Float], halving: Float, precision: UInt32, maxHalv
     var peaksCountVar = peaksCount
     computeEncoder.setBytes(&peaksCountVar, length: MemoryLayout<UInt32>.stride, index: 10)
     
-    computeEncoder.setBuffer(peaksBuffer, offset: 0, index: 10)
+    computeEncoder.setBuffer(peaksBuffer, offset: 0, index: 11)
+    computeEncoder.setBuffer(currentSignalBuffer, offset: 0, index: 12)
 
     // 8. Set the threadgroup and grid dimensions
     let threadsPerThreadgroup = MTLSizeMake(pipelineState.maxTotalThreadsPerThreadgroup, 1, 1)
@@ -182,5 +184,7 @@ func exampleUsage(){
     for value in resultant {
        print(value)
     }
+    
+    print("End execution")
 }
 

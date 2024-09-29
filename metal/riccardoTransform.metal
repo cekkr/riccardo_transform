@@ -8,45 +8,41 @@ struct Sinusoid {
 };
 
 // Helper function to find peaks (using threadgroup memory)
-uint find_peaks (device float* residue,
-                        device int* peaks,
-                        uint id [[thread_position_in_grid]],
-                        uint size [[threads_per_grid]],
-                        uint peaksCount) {
+uint find_peaks(device float* residue,
+                 device int* peaks,
+                 uint id [[thread_position_in_grid]],
+                 uint size [[threads_per_grid]],
+                 uint peaksCount,
+                 uint peaksBegin) {
 
     if (id >= size || size < 2) {
         return 0;
     }
 
-    enum Trend {
-        Increasing,
-        Decreasing,
-        None
-    };
-
     threadgroup_barrier(mem_flags::mem_device);
 
-    Trend currentTrend = Trend::None;
-    uint peakCount = 0;
+    float changes = 0.0f;
+    float averageChanges = 0.0f;
+    int polarity = 0;
+    uint peakCount = peaksBegin;
+
     for (uint i = id + 1; i < size; i += size) {
-        if (residue[i] > residue[i - 1]) {
-            if (currentTrend == Trend::Decreasing) {
+        float diff = residue[i] - residue[i - 1];
+        changes = (changes + diff) / 2.0f;  // Update average change
+        averageChanges = (averageChanges + fabs(changes)) / 2.0f; // Update average of absolute changes
+
+        if (fabs(changes) > averageChanges / 2.0f) {
+            if ((changes > 0.0f && polarity != 1) ||
+                (changes < 0.0f && polarity != -1)) {
                 peaks[peakCount++] = i - 1;
+                polarity = changes > 0.0f ? 1 : -1;
             }
-            currentTrend = Trend::Increasing;
-        } else if (residue[i] < residue[i - 1]) {
-            if (currentTrend == Trend::Increasing) {
-                peaks[peakCount++] = i - 1;
-            }
-            currentTrend = Trend::Decreasing;
-        } else {
-            currentTrend = Trend::None;
         }
-        
+
         if (peakCount >= peaksCount) break;
     }
 
-    if(peakCount < peaksCount) peaks[peakCount] = -1; // Mark the end of peaks
+    if (peakCount < peaksCount) peaks[peakCount] = -1; // Mark the end of peaks
     return peakCount;
 }
 
@@ -182,6 +178,24 @@ float calculate_mean_abs(const device float* numbers, uint size) {
     return sum / float(size);
 }
 
+int compact_peaks(device int* peaks, uint length) {
+    if (length <= 1) {
+        return length;
+    }
+
+    uint writeIndex = 1;
+    for (uint readIndex = 1; readIndex < length; readIndex++) {
+        if (peaks[readIndex] != peaks[readIndex - 1]) {
+            peaks[writeIndex] = peaks[readIndex];
+            writeIndex++;
+        } else {
+            peaks[writeIndex - 1] = -2; // Mark as repeated
+        }
+    }
+
+    return writeIndex;
+}
+
 // Kernel function for decompose_sinusoid
 kernel void decompose_sinusoid_kernel(const device float* data [[buffer(0)]],
                                       device Sinusoid* sinusoids [[buffer(1)]],
@@ -195,6 +209,7 @@ kernel void decompose_sinusoid_kernel(const device float* data [[buffer(0)]],
                                       constant uint& sinusoidsCount [[buffer(9)]],
                                       constant uint& peaksCount [[buffer(10)]],
                                       device int* peaks [[buffer(11)]],
+                                      device float* currentSignal [[buffer(12)]],
                                       uint size [[threads_per_grid]],
                                       uint gid [[thread_position_in_grid]]) {
 
@@ -228,12 +243,29 @@ kernel void decompose_sinusoid_kernel(const device float* data [[buffer(0)]],
         }
         threadgroup_barrier(mem_flags::mem_device);
 
-        // Find peaks for current frequency (using threadgroup memory)
-        uint peakCount = find_peaks(residue, peaks, gid, size, peaksCount);
-        threadgroup_barrier(mem_flags::mem_device);
-
         float amplitude = 1.0f;
         float phase = 0.0f;
+        
+        // Find peaks for current frequency phase: 0
+        for (uint j = gid; j < length; j += size) {
+            currentSignal[j] = generate_sinusoid(frequency, amplitude, phase, j);
+        }
+        threadgroup_barrier(mem_flags::mem_device);
+                
+        uint peakCount = find_peaks(currentSignal, peaks, gid, size, peaksCount, 0);
+        threadgroup_barrier(mem_flags::mem_device);
+
+        // Find peaks for current frequency phase: PI
+        for (uint j = gid; j < length; j += size) {
+            currentSignal[j] = generate_sinusoid(frequency, amplitude, phase + PI, j);
+        }
+        threadgroup_barrier(mem_flags::mem_device);
+                
+        peakCount = find_peaks(currentSignal, peaks, gid, size, peaksCount, peakCount);
+        threadgroup_barrier(mem_flags::mem_device);
+        
+        // Compact peaks
+        peakCount = compact_peaks(peaks, peakCount);
 
         // Find best phase and amplitude
         for (uint j = 0; j < precision / 2; ++j) {
