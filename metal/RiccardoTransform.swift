@@ -40,7 +40,7 @@ func decomposeSinusoidAdvance(data: [Float], halving: Float, precision: UInt32, 
     // 5. Prepare the input and output data buffers
     let dataCount = data.count
     let dataBuffer = device.makeBuffer(bytes: data, length: dataCount * MemoryLayout<Float>.stride, options: [])!
-    let sinusoidsCount = UInt32(dataCount * Int(precision / 2))
+    let sinusoidsCount = UInt32(maxHalvings * precision / 2)
     let sinusoidsBuffer = device.makeBuffer(length: Int(sinusoidsCount) * MemoryLayout<Sinusoid>.stride, options: [])!
     let residueBuffer = device.makeBuffer(length: dataCount * MemoryLayout<Float>.stride, options: [])!
     let resultantBuffer = device.makeBuffer(length: dataCount * MemoryLayout<Float>.stride, options: [])!
@@ -85,10 +85,13 @@ func decomposeSinusoidAdvance(data: [Float], halving: Float, precision: UInt32, 
     computeEncoder.setBuffer(peaksBuffer, offset: 0, index: 13)
     computeEncoder.setBuffer(currentSignalBuffer, offset: 0, index: 14)
     computeEncoder.setBuffer(currentResultantBuffer, offset: 0, index: 15)
+    
+    var dataCountVar = UInt32(dataCount)
+    computeEncoder.setBytes(&dataCountVar, length: MemoryLayout<UInt32>.stride, index: 16)
 
     // 8. Set the threadgroup and grid dimensions
     let threadsPerThreadgroup = MTLSizeMake(pipelineState.maxTotalThreadsPerThreadgroup, 1, 1)
-    let threadsPerGrid = MTLSizeMake(dataCount, 1, 1)
+    let threadsPerGrid = MTLSizeMake(1, 1, 1)
     computeEncoder.dispatchThreads(threadsPerGrid, threadsPerThreadgroup: threadsPerThreadgroup)
 
     // 9. End the encoding and commit the command buffer
@@ -98,8 +101,8 @@ func decomposeSinusoidAdvance(data: [Float], halving: Float, precision: UInt32, 
 
     // 10. Get the results from the output buffers
     let sinusoids = Array(UnsafeBufferPointer(start: sinusoidsBuffer.contents().bindMemory(to: Sinusoid.self, capacity: Int(sinusoidsCount)), count: Int(sinusoidsCount)))
-    let residue = Array(UnsafeBufferPointer(start: residueBuffer.contents().bindMemory(to: Float.self, capacity: dataCount), count: dataCount))
-    let resultant = Array(UnsafeBufferPointer(start: resultantBuffer.contents().bindMemory(to: Float.self, capacity: dataCount), count: dataCount))
+    let residue = Array(UnsafeBufferPointer(start: dataBuffer.contents().bindMemory(to: Float.self, capacity: dataCount), count: dataCount))
+    let resultant = Array(UnsafeBufferPointer(start: currentResultantBuffer.contents().bindMemory(to: Float.self, capacity: dataCount), count: dataCount))
     
     // read them for debug purposes
     //let peaks = Array(UnsafeBufferPointer(start: peaksBuffer.contents().bindMemory(to: Int32.self, capacity: dataCount), count: peaksCount))
@@ -168,32 +171,46 @@ struct Complex {
 
 // Example input data
 func exampleUsage(){
-    let length = 100
+    let length = 1000
     let refPi = Float.pi / (Float(length) / 2.0)
     
+    let startFrom : Float = 2.0
     let data: [Float] = (0..<length).map { x in
         let xDouble = Float(x)
-        return sin(refPi * xDouble) +
-        (sin((refPi * xDouble * 2) + (Float.pi / 4.0)) * 0.5) //+
-        //sin(refPi * xDouble * 3) +
-        //sin(refPi * xDouble * 8)
+        return sin(refPi * xDouble * startFrom)
+        //+ (sin((refPi * xDouble * 2 * startFrom) + (Float.pi / 4.0)) * 0.5)
+        + sin(refPi * xDouble * 3 * startFrom)
+        + sin(refPi * xDouble * 8 * startFrom)
     }
     
-    // Call the function with your desired parameters
-    let (sinusoids, residue, resultant) = decomposeSinusoidAdvance(data: data, halving: 2.0, precision: 10, maxHalvings: 50, referenceSize: 1.0, negligible: 0.01)
+    var mainSinusoids : [Sinusoid] = []
+    
+    for _ in  0...1 {
+        // Call the function with your desired parameters
+        let (sinusoids, residue, resultant) = decomposeSinusoidAdvance(data: data, halving: 2.0, precision: 10, maxHalvings: 50, referenceSize: 1.0, negligible: 0.01)
+        
+        if false {
+            // Print the reconstructed signal (resultant)
+            print("\nReconstructed Signal:")
+            for value in residue {
+               print(value)
+            }
+        }
+        
+        if mainSinusoids.isEmpty{
+            mainSinusoids = sinusoids
+        }
+        else {
+            mainSinusoids = combineSinusoids(sinusoids1: mainSinusoids, sinusoids2: sinusoids)
+        }
+    }
 
     // Print the extracted sinusoids
     print("Extracted Sinusoids:")
-    for sinusoid in sinusoids {
+    for sinusoid in mainSinusoids {
        print("Frequency: \(sinusoid.frequency), Amplitude: \(sinusoid.amplitude), Phase: \(sinusoid.phase)")
     }
 
-    // Print the reconstructed signal (resultant)
-    print("\nReconstructed Signal:")
-    for value in residue {
-       print(value)
-    }
-    
     print("End execution")
 }
 
