@@ -14,7 +14,7 @@ struct Sinusoid {
     let phase: Float
 }
 
-func decomposeSinusoid(data: [Float], halving: Float, precision: UInt32, maxHalvings: UInt32, referenceSize: Float, negligible: Float) -> ([Sinusoid], [Float]) {
+func decomposeSinusoid(data: [Float], halving: Float, precision: UInt32, maxHalvings: UInt32, referenceSize: Float, negligible: Float) -> ([Sinusoid], [Float], [Float]) {
 
     // 1. Get the Metal device
     guard let device = MTLCreateSystemDefaultDevice() else {
@@ -40,10 +40,13 @@ func decomposeSinusoid(data: [Float], halving: Float, precision: UInt32, maxHalv
     // 5. Prepare the input and output data buffers
     let dataCount = data.count
     let dataBuffer = device.makeBuffer(bytes: data, length: dataCount * MemoryLayout<Float>.stride, options: [])!
-    let sinusoidsBuffer = device.makeBuffer(length: dataCount * MemoryLayout<Sinusoid>.stride, options: [])!
+    let sinusoidsCount = UInt32(dataCount * Int(precision / 2))
+    let sinusoidsBuffer = device.makeBuffer(length: Int(sinusoidsCount) * MemoryLayout<Sinusoid>.stride, options: [])!
     let residueBuffer = device.makeBuffer(length: dataCount * MemoryLayout<Float>.stride, options: [])!
     let resultantBuffer = device.makeBuffer(length: dataCount * MemoryLayout<Float>.stride, options: [])!
-
+    let peaksBuffer = device.makeBuffer(length: dataCount * MemoryLayout<Int>.stride, options: [])!
+    let peaksCount = data.count < 1024 ? data.count : 1024
+    
     // 6. Create a Metal command buffer and encoder
     guard let commandBuffer = commandQueue.makeCommandBuffer(),
           let computeEncoder = commandBuffer.makeComputeCommandEncoder() else {
@@ -68,6 +71,12 @@ func decomposeSinusoid(data: [Float], halving: Float, precision: UInt32, maxHalv
     computeEncoder.setBytes(&referenceSizeVar, length: MemoryLayout<Float>.stride, index: 7)
     var negligibleVar = negligible
     computeEncoder.setBytes(&negligibleVar, length: MemoryLayout<Float>.stride, index: 8)
+    var sinusoidsCountVar = sinusoidsCount
+    computeEncoder.setBytes(&sinusoidsCountVar, length: MemoryLayout<UInt32>.stride, index: 9)
+    var peaksCountVar = peaksCount
+    computeEncoder.setBytes(&peaksCountVar, length: MemoryLayout<UInt32>.stride, index: 10)
+    
+    computeEncoder.setBuffer(peaksBuffer, offset: 0, index: 10)
 
     // 8. Set the threadgroup and grid dimensions
     let threadsPerThreadgroup = MTLSizeMake(pipelineState.maxTotalThreadsPerThreadgroup, 1, 1)
@@ -81,9 +90,10 @@ func decomposeSinusoid(data: [Float], halving: Float, precision: UInt32, maxHalv
 
     // 10. Get the results from the output buffers
     let sinusoids = Array(UnsafeBufferPointer(start: sinusoidsBuffer.contents().bindMemory(to: Sinusoid.self, capacity: dataCount), count: dataCount))
+    let residue = Array(UnsafeBufferPointer(start: residueBuffer.contents().bindMemory(to: Float.self, capacity: dataCount), count: dataCount))
     let resultant = Array(UnsafeBufferPointer(start: resultantBuffer.contents().bindMemory(to: Float.self, capacity: dataCount), count: dataCount))
 
-    return (sinusoids, resultant)
+    return (sinusoids, residue, resultant)
 }
 
 func combineSinusoids(sinusoids1: [Sinusoid], sinusoids2: [Sinusoid], minimum: Float = 0.05) -> [Sinusoid] {
@@ -159,7 +169,7 @@ func exampleUsage(){
     }
     
     // Call the function with your desired parameters
-    let (sinusoids, resultant) = decomposeSinusoid(data: data, halving: 2.0, precision: 10, maxHalvings: 50, referenceSize: 1.0, negligible: 0.01)
+    let (sinusoids, residue, resultant) = decomposeSinusoid(data: data, halving: 2.0, precision: 10, maxHalvings: 50, referenceSize: 1.0, negligible: 0.01)
     
     // Print the extracted sinusoids
     print("Extracted Sinusoids:")
