@@ -8,7 +8,7 @@ struct Sinusoid {
 };
 
 // Helper function to find peaks (using threadgroup memory)
-uint find_peaks_kernel(device float* residue,
+uint find_peaks (device float* residue,
                         device int* peaks,
                         uint id [[thread_position_in_grid]],
                         uint size [[threads_per_grid]],
@@ -229,7 +229,7 @@ kernel void decompose_sinusoid_kernel(const device float* data [[buffer(0)]],
         threadgroup_barrier(mem_flags::mem_device);
 
         // Find peaks for current frequency (using threadgroup memory)
-        uint peakCount = find_peaks_kernel(residue, peaks, gid, size, peaksCount);
+        uint peakCount = find_peaks(residue, peaks, gid, size, peaksCount);
         threadgroup_barrier(mem_flags::mem_device);
 
         float amplitude = 1.0f;
