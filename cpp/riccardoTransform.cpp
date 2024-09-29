@@ -168,7 +168,6 @@ std::vector<std::size_t> union_without_duplicates(const std::vector<std::size_t>
     return combined_list;
 }
 
-
 struct Sinusoid {
     double frequency;
     double phase;
