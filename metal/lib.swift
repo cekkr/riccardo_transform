@@ -1,4 +1,5 @@
 import MetalKit
+import Foundation
 
 func decomposeSinusoid(data: [Float], halving: Float, precision: UInt32, maxHalvings: UInt32, referenceSize: Float, negligible: Float) -> ([Sinusoid], [Float]) {
 
@@ -71,3 +72,22 @@ func decomposeSinusoid(data: [Float], halving: Float, precision: UInt32, maxHalv
 
     return (sinusoids, resultant)
 }
+
+// Example input data
+
+let length = 100
+let refPi = Double.pi / (Double(length) / 2.0)
+
+let data: [Double] = (0..<length).map { x in
+    let xDouble = Double(x)
+    return sin(refPi * xDouble) +
+           (sin((refPi * xDouble * 2) + (Double.pi / 4.0)) * 0.5) +
+           sin(refPi * xDouble * 3) +
+           sin(refPi * xDouble * 8)
+}
+
+// Call the function with your desired parameters
+let (sinusoids, resultant) = decomposeSinusoid(data: data, halving: 2.0, precision: 10, maxHalvings: 50, referenceSize: 1.0, negligible: 0.01)
+
+// Now you have the extracted sinusoids in the 'sinusoids' array
+// and the reconstructed signal in the 'resultant' array
