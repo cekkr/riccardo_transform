@@ -20,14 +20,15 @@ int main() {
                   (std::sin((refPi * x * 2) + (PI / 4)) * 0.5) + 
                   std::sin(refPi * x * 3) + 
                   std::sin(refPi * x * 8);
+                  //0;
     }
 
     std::vector<double> curData = data;
     std::vector<Sinusoid> sinusoids;
-    for(int x = 0; x < 10; x++) {
+    for(int x = 0; x < 1; x++) {
         std::vector<Sinusoid> _sinusoids;
         std::vector<double> _residue, _resultant;
-        std::tie(_sinusoids, _residue, _resultant) = decompose_sinusoid(curData, 2, 8, 10, 1);
+        std::tie(_sinusoids, _residue, _resultant) = decompose_sinusoid(curData, 2, 6, 10, 1);
 
         if(false){
             std::cout << std::endl << "Cur sinusoids:" << std::endl;
