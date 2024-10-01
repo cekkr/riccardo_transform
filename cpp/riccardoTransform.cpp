@@ -14,7 +14,7 @@ namespace {
 }
 
 // Helper function to find peaks using Boost
-std::vector<std::size_t> find_peaks(const std::vector<double>& array) {
+std::vector<std::size_t> find_peaks(const std::vector<double>& array, double threshold=0.5) {
     std::vector<std::size_t> peaks;    
     if (array.size() < 2) { 
         return peaks; // Not enough data to find peaks
@@ -27,22 +27,29 @@ std::vector<std::size_t> find_peaks(const std::vector<double>& array) {
     };
 
     Trend currentTrend = Trend::None;
+    double avgDiff = 0;
 
     for (std::size_t i = 1; i < array.size(); ++i) {
-        if (array[i] > array[i - 1]) {
-            if (currentTrend == Trend::Decreasing) {
-                peaks.push_back(i - 1); // Peak found
-            } 
-            currentTrend = Trend::Increasing;
-        } else if (array[i] < array[i - 1]) {
-            if (currentTrend == Trend::Increasing) {
-                peaks.push_back(i - 1); // Peak found
-            } 
+        double diff = array[i] - array[i - 1];
 
-            currentTrend = Trend::Decreasing;
-        } else { 
-            //peaks.push_back(i - 1); // Peak found (ignore)
-            currentTrend = Trend::None;
+        if(fabs(diff) > avgDiff*threshold){
+            if (diff > 0) {
+                if (currentTrend == Trend::Decreasing) {
+                    peaks.push_back(i - 1); // Peak found
+                } 
+                currentTrend = Trend::Increasing;
+            } else if (diff < 0) {
+                if (currentTrend == Trend::Increasing) {
+                    peaks.push_back(i - 1); // Peak found
+                } 
+
+                currentTrend = Trend::Decreasing;
+            } else { 
+                //peaks.push_back(i - 1); // Peak found (ignore)
+                currentTrend = Trend::None;
+            }
+
+            avgDiff = (fabs(diff) + avgDiff) / 2;
         }
     }
 

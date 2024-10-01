@@ -22,26 +22,30 @@ int main() {
                   std::sin(refPi * x * 8);
     }
 
-    std::vector<Sinusoid> sinusoids_1, sinusoids_2;
-    std::vector<double> residue, resultant;
+    std::vector<double> curData = data;
+    std::vector<Sinusoid> sinusoids;
+    for(int x = 0; x < 10; x++) {
+        std::vector<Sinusoid> _sinusoids;
+        std::vector<double> _residue, _resultant;
+        std::tie(_sinusoids, _residue, _resultant) = decompose_sinusoid(curData, 2, 8, 10, 1);
 
-    std::tie(sinusoids_1, residue, resultant) = decompose_sinusoid(data, 2, 8, 10, 1);
-    std::tie(sinusoids_2, residue, resultant) = decompose_sinusoid(residue, 2, 8, 10, 1);
+        if(false){
+            std::cout << std::endl << "Cur sinusoids:" << std::endl;
+            for (const auto& s : _sinusoids) {
+                std::cout << "Frequency: " << s.frequency << ", Amplitude: " << s.amplitude << ", Phase: " << s.phase << std::endl;
+            }
+        }
 
-    std::cout << std::endl << "Sinusoids 1:" << std::endl;
-    for (const auto& s : sinusoids_1) {
-        std::cout << "Frequency: " << s.frequency << ", Amplitude: " << s.amplitude << ", Phase: " << s.phase << std::endl;
+        if(sinusoids.size() == 0)
+            sinusoids = _sinusoids;
+        else
+            sinusoids = combine_sinusoids(sinusoids, _sinusoids);
+
+        curData = _residue;
     }
-
-    std::cout << std::endl << "Sinusoids 2:" << std::endl;
-    for (const auto& s : sinusoids_2) {
-        std::cout << "Frequency: " << s.frequency << ", Amplitude: " << s.amplitude << ", Phase: " << s.phase << std::endl;
-    }
-
-    std::vector<Sinusoid> total_sinusoids = combine_sinusoids(sinusoids_1, sinusoids_2);
 
     std::cout << std::endl << "Total sinusoids:" << std::endl;
-    for (const auto& s : total_sinusoids) {
+    for (const auto& s : sinusoids) {
         std::cout << "Frequency: " << s.frequency << ", Amplitude: " << s.amplitude << ", Phase: " << s.phase << std::endl;
     }
 
