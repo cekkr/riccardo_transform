@@ -174,20 +174,24 @@ func exampleUsage(){
     let length = 1000
     let refPi = Float.pi / (Float(length) / 2.0)
     
-    let startFrom : Float = 2.0
+    let startFrom : Float = 1.0
     let data: [Float] = (0..<length).map { x in
         let xDouble = Float(x)
         return sin(refPi * xDouble * startFrom)
-        //+ (sin((refPi * xDouble * 2 * startFrom) + (Float.pi / 4.0)) * 0.5)
+        //+ (sin((refPi * xDouble * 2 * startFrom) + (Float.pi / 4.0))*0.5)
         + sin(refPi * xDouble * 3 * startFrom)
-        + sin(refPi * xDouble * 8 * startFrom)
+        //+ sin(refPi * xDouble * 8 * startFrom)
     }
     
     var mainSinusoids : [Sinusoid] = []
     
-    for _ in  0...1 {
+    var curData = data
+    
+    for _ in  0...3 {
         // Call the function with your desired parameters
-        let (sinusoids, residue, resultant) = decomposeSinusoidAdvance(data: data, halving: 2.0, precision: 10, maxHalvings: 50, referenceSize: 1.0, negligible: 0.01)
+        let (sinusoids, residue, resultant) = decomposeSinusoidAdvance(data: curData, halving: 2.0, precision: 10, maxHalvings: 50, referenceSize: 1.0, negligible: 0.01)
+        
+        curData = residue
         
         if false {
             // Print the reconstructed signal (resultant)

@@ -31,8 +31,9 @@ std::vector<std::size_t> find_peaks(const std::vector<double>& array, double thr
 
     for (std::size_t i = 1; i < array.size(); ++i) {
         double diff = array[i] - array[i - 1];
+        double absDiff = abs(diff);
 
-        if(fabs(diff) > avgDiff*threshold){
+        if(absDiff > avgDiff*threshold){
             if (diff > 0) {
                 if (currentTrend == Trend::Decreasing) {
                     peaks.push_back(i - 1); // Peak found
@@ -49,7 +50,7 @@ std::vector<std::size_t> find_peaks(const std::vector<double>& array, double thr
                 currentTrend = Trend::None;
             }
 
-            avgDiff = (fabs(diff) + avgDiff) / 2;
+            avgDiff = (absDiff + avgDiff) / 2;
         }
     }
 

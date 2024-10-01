@@ -22,16 +22,15 @@ uint find_peaks(device float* residue,
     threadgroup_barrier(mem_flags::mem_device);
 
     float changes = 0.0f;
-    float averageChanges = 0.0f;
     int polarity = 0;
     uint peakCount = peaksBegin;
 
     for (uint i = 1; i < size; i += 1) {
         float diff = residue[i] - residue[i - 1];
-        changes = (changes + diff) / 2.0f;  // Update average change
-        averageChanges = (averageChanges + fabs(changes)) / 2.0f; // Update average of absolute changes
-
-        if (fabs(changes) > averageChanges / 2.f) {
+        float absDiff = fabs(diff);
+        changes = (changes + absDiff) / 2.0f;  // Update average change
+        
+        if (absDiff > changes / 2.f) {
             if ((diff > 0.0f && polarity != 1) ||
                 (diff < 0.0f && polarity != -1)) {
                 peaks[peakCount++] = i - 1;
@@ -68,9 +67,11 @@ float find_best_phase(const device float* residue, float frequency, float amplit
             for (uint k = 0; k < peakCount; ++k) {
                 float val = calculate_sin(frequency, amplitude, phases[j], float(peak_indices[k]));
                 float res = residue[peak_indices[k]];
-                max_diff = fmax(max_diff, fabs(res-val));
+                float diff = res-val;
+                diff = pow(diff, 2);
+                max_diff += diff;
             }
-            errors[j] = max_diff;
+            errors[j] = max_diff/peakCount;
         }
 
         uint min_index = 0;
@@ -96,8 +97,10 @@ float find_best_phase(const device float* residue, float frequency, float amplit
         phases[1] = best_phase;
         phases[2] = best_phase + (step / 2.0f);
 
-        if (phases[0] < 0.0f || phases[0] > 2.0f * PI) { phases[0] = phases[1]; }
-        if (phases[2] < 0.0f || phases[2] > 2.0f * PI) { phases[2] = phases[1]; }
+        if (phases[0] < 0.0f) { phases[0] = 0; }
+        if (phases[0] > 2.0f * PI) { phases[0] = 2.0f * PI; }
+        if (phases[2] < 0.0f) { phases[2] = 0; }
+        if (phases[2] > 2.0f * PI) { phases[2] = 2.0f * PI; }
 
         if (phases[0] == phases[1] && phases[1] == phases[2]) {
             break;
@@ -113,24 +116,27 @@ float find_best_amplitude(device float* residue, float frequency, float phase, u
     float best_amplitude = -1.0f;
     uint num_identical = 0;
 
-    for (uint i = 0; i < precision; ++i) {
+    for (uint i = 0; i < precision; i++) {
         float errors[3] = {0.0f, 0.0f, 0.0f};
-        for (uint j = 0; j < 3; ++j) {
+        for (uint j = 0; j < 3; j++) {
             float max_diff = 0.0f;
             for (uint k = 0; k < peakCount; ++k) {
                 float val = calculate_sin(frequency, amplitudes[j], phase, float(peak_indices[k]));
                 float res = residue[peak_indices[k]];
-                max_diff = fmax(max_diff, fabs(res-val));
+                float diff = res-val;
+                diff = pow(diff, 2);
+                max_diff += diff;
             }
-            errors[j] = max_diff;
+            errors[j] = max_diff/peakCount;
         }
 
         uint min_index = 0;
-        for (uint j = 1; j < 3; ++j) {
+        for (uint j = 1; j < 3; j++) {
             if (errors[j] < errors[min_index]) {
                 min_index = j;
             }
         }
+        
         float best = amplitudes[min_index];
 
         if (best_amplitude == best) {
@@ -147,8 +153,8 @@ float find_best_amplitude(device float* residue, float frequency, float phase, u
         amplitudes[1] = best_amplitude;
         amplitudes[2] = best_amplitude + (step / 2.0f);
 
-        if (amplitudes[0] < 0.0f) { amplitudes[0] = amplitudes[1]; }
-        if (amplitudes[2] < 0.0f) { amplitudes[2] = amplitudes[1]; }
+        if (amplitudes[0] < 0.0f) { amplitudes[0] = 0; }
+        if (amplitudes[2] < 0.0f) { amplitudes[2] = 0; }
 
         if (amplitudes[0] == amplitudes[1] && amplitudes[1] == amplitudes[2]) {
             break;
@@ -173,9 +179,9 @@ float calculate_mean_onPeaks(device float* prev, device float* diff, uint size, 
         uint peak = peaks[i];
         float pre = prev[peak];
         float dif = diff[peak];
-        float diff = pow(dif-pre, 3);
-        if((dif+pre)<0) diff *= -1;
-        sum += diff;
+        float scale = dif-pre;
+        if(pre<0) scale *= -1;
+        sum += scale;
     }
     return sum / float(size);
 }
@@ -321,6 +327,9 @@ void generate_sinusoid_and_find_parameters(device float* data,
         //mean_diff = calculate_mean(residue, length);
         mean_diff = calculate_mean_onPeaks(data, residue, length, peaks, peakCount);
     }
+    else {
+        amplitude = 0;
+    }
 
     // Store results in threadgroup memory
     *tg_amplitude = amplitude;
@@ -358,14 +367,12 @@ kernel void decompose_sinusoid_adv_kernel(device float* data [[buffer(0)]],
     float prev_frequency = frequency;
     float next_frequency = frequency * 2.0f;
 
-    float mean_residue = 1994.0f;
+    float mean_residue = calculate_mean(data, length);
     uint sinusoidIndex = 0;
 
     for (uint i = 0; i < max_halvings; ++i) {
-        
-        for(uint i=0; i<length; i++){
-            current_resultant[i] = resultant[i];
-        }
+                
+        if(sinusoidIndex >= sinusoidsCount) break;
         
         if (calculate_mean_abs(data, length) < negligible) {
             break;
@@ -382,50 +389,56 @@ kernel void decompose_sinusoid_adv_kernel(device float* data [[buffer(0)]],
         float mean_diff = tg_mean_diff;
 
         bool no_frequency_halving = false;
-
-        float freq = frequency;
-        float best_amplitude = 0.0f;
-        float best_phase = 0.0f;
-        float reference_mean = mean_residue;
-        float min_freq = prev_frequency;
-
-        for (uint j = 0; j < precision / 2; j++) {
-            freq = (freq + min_freq) / 2;
+        
+        if(frequency != prev_frequency){
+            float freq = frequency;
+            float best_amplitude = 0.0f;
+            float best_phase = 0.0f;
+            float reference_mean = mean_residue;
+            float min_freq = prev_frequency;
             
-            for(uint i=0; i<length; i++){
-                temp_resultant[i] = current_resultant[i];
+            for (uint j = 0; j < precision / 2; j++) {
+                freq = (freq + min_freq) / 2;
+                
+                for(uint i=0; i<length; i++){
+                    //temp_resultant[i] = current_resultant[i];
+                    temp_resultant[i] = 0;
+                }
+                
+                generate_sinusoid_and_find_parameters(data, temp_residue, temp_resultant, precision, negligible, peaksCount, peaks, currentSignal, size, gid, freq, &tg_amplitude, &tg_phase, &tg_mean_diff, dataCount);
+                
+                if ((tg_mean_diff > mean_diff || tg_mean_diff > reference_mean)) {
+                    break;
+                }
+                
+                if (mean_residue - tg_mean_diff < mean_diff - tg_mean_diff) {
+                    min_freq = prev_frequency;
+                } else {
+                    min_freq = frequency;
+                }
+                
+                if (tg_amplitude > 0.0f) {
+                    reference_mean = tg_mean_diff;
+                    best_amplitude = tg_amplitude;
+                    best_phase = tg_phase;
+                }
+                else {
+                    break;
+                }
             }
-
-            generate_sinusoid_and_find_parameters(data, temp_residue, temp_resultant, precision, negligible, peaksCount, peaks, currentSignal, size, gid, freq, &tg_amplitude, &tg_phase, &tg_mean_diff, dataCount);
-
-            if ((tg_mean_diff > mean_diff || tg_mean_diff > reference_mean)) {
-                break;
-            }
-
-            if (mean_residue - tg_mean_diff > mean_diff - tg_mean_diff) {
-                min_freq = prev_frequency;
-            } else {
-                min_freq = frequency;
-            }
-
-            if (tg_amplitude > 0.0f) {
-                reference_mean = tg_mean_diff;
-                best_amplitude = tg_amplitude;
-                best_phase = tg_phase;
-                            
+            
+            if (best_amplitude > 0.0f) {
+                frequency = freq;
+                amplitude = best_amplitude;
+                phase = best_phase;
+                mean_diff = reference_mean;
+                no_frequency_halving = true;
+                
                 for(uint i = 0; i < length; i++){
                     residue[i] = temp_residue[i];
                     resultant[i] = temp_resultant[i];
                 }
             }
-        }
-
-        if (best_amplitude > 0.0f) {
-            frequency = freq;
-            amplitude = best_amplitude;
-            phase = best_phase;
-            mean_diff = reference_mean;
-            no_frequency_halving = true;
         }
     
 
@@ -444,13 +457,11 @@ kernel void decompose_sinusoid_adv_kernel(device float* data [[buffer(0)]],
             
             for(uint i = 0; i < length; i++){
                 data[i] = residue[i];
+                current_resultant[i] += resultant[i];
             }
-            
-            if(sinusoidIndex >= sinusoidsCount)
-                break;
         }
         
-        if (no_frequency_halving && false) {
+        if (no_frequency_halving) {
             prev_frequency = frequency;
             frequency = (frequency + next_frequency)/2; //prev_frequency * halving;
         } else {
